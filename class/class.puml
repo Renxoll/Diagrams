@@ -1,0 +1,479 @@
+@startuml
+
+title GreenSense Smart Ventilation Controller - Embedded Application Class Diagram
+
+
+
+top to bottom direction
+
+skinparam classAttributeIconSize 0
+
+skinparam shadowing false
+
+
+
+' ============================================================
+
+' ModestIoT Framework
+
+' ============================================================
+
+
+
+package "ModestIoT Framework" {
+
+
+
+  class Command {
+
+    - id: int
+
+    + Command(commandId: int)
+
+    + operator==(other: Command): bool
+
+  }
+
+
+
+  class Event {
+
+    - id: int
+
+    + Event(eventId: int)
+
+    + operator==(other: Event): bool
+
+  }
+
+
+
+  abstract class CommandHandler {
+
+    + handle(command: Command): void
+
+  }
+
+
+
+  abstract class EventHandler {
+
+    + on(event: Event): void
+
+  }
+
+
+
+  abstract class Device {
+
+    + on(event: Event): void
+
+    + handle(command: Command): void
+
+  }
+
+
+
+  class Sensor {
+
+    # pin: int
+
+    # handler: EventHandler*
+
+    + Sensor(pin: int, eventHandler: EventHandler*)
+
+    + on(event: Event): void
+
+  }
+
+
+
+  class Actuator {
+
+    # pin: int
+
+    # handler: CommandHandler*
+
+    + Actuator(pin: int, commandHandler: CommandHandler*)
+
+    + handle(command: Command): void
+
+  }
+
+
+
+  Device -up-|> EventHandler
+
+  Device -up-|> CommandHandler
+
+  Sensor -up-|> EventHandler
+
+  Actuator -up-|> CommandHandler
+
+}
+
+
+
+' ============================================================
+
+' Embedded Application
+
+' ============================================================
+
+
+
+package "Smart Ventilation Controller" {
+
+
+
+  class SmartVentilationController {
+
+    - controllerId: String
+
+    - zoneId: String
+
+    - co2Threshold: float
+
+    - temperatureThreshold: float
+
+    - offlineMode: bool
+
+
+
+    + SmartVentilationController()
+
+    + on(event: Event): void
+
+    + handle(command: Command): void
+
+    + evaluateAirQuality(): void
+
+    + adjustVentilation(): void
+
+    + sendTelemetry(): void
+
+    + reportFailure(): void
+
+  }
+
+
+
+  class Dht22Sensor {
+
+    - temperature: float
+
+    - humidity: float
+
+    + readTemperature(): float
+
+    + readHumidity(): float
+
+  }
+
+
+
+  class Co2Sensor {
+
+    - co2Level: float
+
+    + readCo2Level(): float
+
+    + isThresholdExceeded(threshold: float): bool
+
+  }
+
+
+
+  class ServoDamper {
+
+    - currentAngle: int
+
+    - openAngle: int
+
+    - closedAngle: int
+
+    + openDamper(): void
+
+    + closeDamper(): void
+
+    + setAngle(angle: int): void
+
+  }
+
+
+
+  class LcdDisplay {
+
+    - columns: int
+
+    - rows: int
+
+    + showMessage(message: String): void
+
+    + showReading(reading: AirQualityReading): void
+
+    + clear(): void
+
+  }
+
+
+
+  class WifiModule {
+
+    - ssid: String
+
+    - password: String
+
+    - connected: bool
+
+    + connect(): bool
+
+    + sendData(data: String): bool
+
+    + isConnected(): bool
+
+  }
+
+
+
+  class AirQualityService {
+
+    + evaluate(reading: AirQualityReading): AirQualityStatus
+
+    + isVentilationRequired(reading: AirQualityReading): bool
+
+  }
+
+
+
+  class VentilationControlService {
+
+    + calculateDamperAngle(status: AirQualityStatus): int
+
+    + applyVentilation(angle: int): bool
+
+  }
+
+
+
+  class TelemetryService {
+
+    + buildTelemetry(reading: AirQualityReading): TelemetryData
+
+    + sendTelemetry(data: TelemetryData): bool
+
+  }
+
+
+
+  class MaintenanceService {
+
+    + checkDeviceStatus(): DeviceStatus
+
+    + createAlert(reason: String): MaintenanceAlert
+
+  }
+
+}
+
+
+
+' ============================================================
+
+' Domain Models
+
+' ============================================================
+
+
+
+package "Domain Models" {
+
+
+
+  class AirQualityReading {
+
+    - temperature: float
+
+    - humidity: float
+
+    - co2Level: float
+
+    + isValid(): bool
+
+  }
+
+
+
+  class TelemetryData {
+
+    - controllerId: String
+
+    - temperature: float
+
+    - humidity: float
+
+    - co2Level: float
+
+    - status: DeviceStatus
+
+    + toJson(): String
+
+  }
+
+
+
+  class MaintenanceAlert {
+
+    - controllerId: String
+
+    - reason: String
+
+    - severity: AlertSeverity
+
+    + toJson(): String
+
+  }
+
+
+
+  enum DeviceStatus {
+
+    READY
+
+    VENTILATING
+
+    OFFLINE
+
+    ERROR
+
+  }
+
+
+
+  enum AirQualityStatus {
+
+    GOOD
+
+    WARNING
+
+    CRITICAL
+
+  }
+
+
+
+  enum AlertSeverity {
+
+    LOW
+
+    MEDIUM
+
+    HIGH
+
+    CRITICAL
+
+  }
+
+}
+
+
+
+' ============================================================
+
+' Inheritance
+
+' ============================================================
+
+
+
+SmartVentilationController -up-|> Device
+
+
+
+Dht22Sensor -up-|> Sensor
+
+Co2Sensor -up-|> Sensor
+
+
+
+ServoDamper -up-|> Actuator
+
+LcdDisplay -up-|> Actuator
+
+
+
+' ============================================================
+
+' Composition
+
+' ============================================================
+
+
+
+SmartVentilationController *-- Dht22Sensor : has
+
+SmartVentilationController *-- Co2Sensor : has
+
+SmartVentilationController *-- ServoDamper : has
+
+SmartVentilationController *-- LcdDisplay : has
+
+SmartVentilationController *-- WifiModule : has
+
+
+
+SmartVentilationController *-- AirQualityService : uses
+
+SmartVentilationController *-- VentilationControlService : uses
+
+SmartVentilationController *-- TelemetryService : uses
+
+SmartVentilationController *-- MaintenanceService : uses
+
+
+
+' ============================================================
+
+' Dependencies
+
+' ============================================================
+
+
+
+Dht22Sensor --> AirQualityReading
+
+Co2Sensor --> AirQualityReading
+
+LcdDisplay --> AirQualityReading
+
+
+
+AirQualityService --> AirQualityReading
+
+AirQualityService --> AirQualityStatus
+
+
+
+VentilationControlService --> AirQualityStatus
+
+
+
+TelemetryService --> AirQualityReading
+
+TelemetryService --> TelemetryData
+
+
+
+MaintenanceService --> MaintenanceAlert
+
+
+
+SmartVentilationController --> DeviceStatus
+
+TelemetryData --> DeviceStatus
+
+MaintenanceAlert --> AlertSeverity
+
+
+
+@enduml
