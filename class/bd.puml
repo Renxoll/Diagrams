@@ -1,0 +1,74 @@
+@startuml BoundedContext_Aggregate_CQRS
+
+!theme plain
+skinparam classAttributeIconSize 0
+
+package "Investment Bounded Context" {
+
+    ' ==========================================
+    ' 1. DOMAIN MODEL (AGGREGATE, ENTITIES, VOs)
+    ' ==========================================
+    class Portfolio <<AggregateRoot>> {
+        - portfolioId: UUID
+        - investorId: UUID
+        - totalBalance: Money
+        - riskTolerance: String
+        + addInvestment(investment: Investment): void
+        + calculateReturnOnInvestment(): double
+    }
+
+    class Investment <<Entity>> {
+        - investmentId: UUID
+        - instrumentId: String
+        - status: String
+        - createdAt: Date
+        + executePayment(): void
+    }
+
+    class Money <<ValueObject>> {
+        - amount: BigDecimal
+        - currency: String
+        + add(money: Money): Money
+    }
+
+    ' Relaciones del Aggregate
+    Portfolio "1" *-- "0..*" Investment : "contains >"
+    Investment "1" *-- "1" Money : "represented by >"
+    Portfolio "1" *-- "1" Money : "measured in >"
+
+    ' ==========================================
+    ' 2. CQRS (COMMANDS & HANDLERS)
+    ' ==========================================
+    interface ICommandHandler<TCommand> {
+        + handle(command: TCommand): void
+    }
+
+    class ExecuteMicroInvestmentCommand <<Command>> {
+        + portfolioId: UUID
+        + instrumentId: String
+        + amount: BigDecimal
+        + currency: String
+    }
+
+    class ExecuteMicroInvestmentCommandHandler <<CommandHandler>> {
+        - portfolioRepository: IPortfolioRepository
+        + handle(command: ExecuteMicroInvestmentCommand): void
+    }
+
+    interface IPortfolioRepository <<Repository>> {
+        + findById(portfolioId: UUID): Portfolio
+        + save(portfolio: Portfolio): void
+    }
+
+    ' Relaciones de CQRS y conexión con el Dominio
+    ExecuteMicroInvestmentCommandHandler ..|> ICommandHandler : "implements"
+    ExecuteMicroInvestmentCommandHandler ..> ExecuteMicroInvestmentCommand : "handles >"
+    
+    ' El Handler usa el Repositorio y llama al Aggregate
+    ExecuteMicroInvestmentCommandHandler --> IPortfolioRepository : "uses >"
+    IPortfolioRepository ..> Portfolio : "persists >"
+    ExecuteMicroInvestmentCommandHandler ..> Portfolio : "invokes logic on >"
+
+}
+
+@enduml
