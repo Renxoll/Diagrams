@@ -1,0 +1,71 @@
+@startuml BoundedContext_Aggregate_CQRS
+
+!theme plain
+skinparam classAttributeIconSize 0
+
+package "Shipping Bounded Context" {
+
+    ' ==========================================
+    ' 1. DOMAIN MODEL (AGGREGATE, ENTITIES, VOs)
+    ' ==========================================
+    class Shipment <<AggregateRoot>> {
+        - shipmentId: UUID
+        - customerId: UUID
+        - totalWeight: double
+        + addPackage(package: Package): void
+        + calculateShippingCost(): BigDecimal
+    }
+
+    class Package <<Entity>> {
+        - packageId: UUID
+        - status: String
+        - createdAt: Date
+        + updateStatus(status: String): void
+    }
+
+    class Dimension <<ValueObject>> {
+        - height: BigDecimal
+        - width: BigDecimal
+        - length: BigDecimal
+        + calculateVolume(): BigDecimal
+    }
+
+    ' Relaciones del Aggregate (Formato corregido)
+    Shipment "1" *-- "0..*" Package : contains
+    Package "1" *-- "1" Dimension : represented by
+
+    ' ==========================================
+    ' 2. CQRS (COMMANDS & HANDLERS)
+    ' ==========================================
+    interface ICommandHandler<TCommand> {
+        + handle(command: TCommand): void
+    }
+
+    class ShipOrderCommand <<Command>> {
+        + shipmentId: UUID
+        + trackingNumber: String
+        + destinationAddress: String
+    }
+
+    class ShipOrderCommandHandler <<CommandHandler>> {
+        - shipmentRepository: IShipmentRepository
+        + handle(command: ShipOrderCommand): void
+    }
+
+    interface IShipmentRepository <<Repository>> {
+        + findById(shipmentId: UUID): Shipment
+        + save(shipment: Shipment): void
+    }
+
+    ' Relaciones de CQRS y conexión con el Dominio
+    ShipOrderCommandHandler ..|> ICommandHandler : implements
+    ShipOrderCommandHandler ..> ShipOrderCommand : handles
+    
+    ' El Handler usa el Repositorio y llama al Aggregate
+    ShipOrderCommandHandler --> IShipmentRepository : uses
+    IShipmentRepository ..> Shipment : persists
+    ShipOrderCommandHandler ..> Shipment : "invokes logic on"
+
+}
+
+@enduml
