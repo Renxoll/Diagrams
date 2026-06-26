@@ -1,0 +1,61 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+title Bounded Context: [NombreDelContexto] - Application Layer Class Diagram
+
+package "Application.[YourBoundedContext]" {
+
+    class "[FeatureName]ApplicationService" <<Application Service>> {
+        - repository: [AggregateName]Repository
+        - externalServicePort: ExternalServicePort
+        --
+        + [FeatureName]ApplicationService(repository: [AggregateName]Repository)
+        + handle(command: [ActionName]Command): [ResponseName]Dto
+    }
+
+    class "[ActionName]Command" <<Command>> {
+        - aggregateId: String
+        - requestedData: String
+        - amount: Double
+        --
+        + [ActionName]Command(aggregateId: String, data: String)
+        + getAggregateId(): String
+        + getRequestedData(): String
+    }
+
+    class "[ResponseName]Dto" <<Data Transfer Object>> {
+        - id: String
+        - code: String
+        - status: String
+        - isSuccess: Boolean
+        --
+        + [ResponseName]Dto(id: String, status: String)
+        + isSuccess(): Boolean
+    }
+    
+    interface "ExternalServicePort" <<Port / Interface>> {
+        + sendNotification(target: String, body: String): Boolean
+    }
+
+    ' Relaciones de la Capa de Aplicación
+    "[FeatureName]ApplicationService" ..> "[ActionName]Command" : executes >
+    "[FeatureName]ApplicationService" ..> "[ResponseName]Dto" : returns >
+    "[FeatureName]ApplicationService" --> "ExternalServicePort" : uses
+}
+
+' Nota de conexión para evidenciar la arquitectura limpia
+package "Domain.Model.[YourBoundedContext]" <<Rectangle>> {
+    interface "[AggregateName]Repository"
+}
+"[FeatureName]ApplicationService" --> "[AggregateName]Repository" : orchestrates
+
+note bottom of "Application.[YourBoundedContext]"
+  **Rules for C03:**
+  1. Application Service does NOT contain business rules.
+  2. It orchestrates domain objects and repositories.
+  3. Communicates via Commands/Queries and returns DTOs.
+end note
+
+@enduml
