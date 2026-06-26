@@ -1,0 +1,64 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+title Bounded Context: [NombreDelContexto] - Domain Layer Class Diagram
+
+package "Domain.Model.[YourBoundedContext]" {
+
+    interface "[AggregateName]Repository" <<Domain Interface>> {
+        + findById(id: [IdType]): [AggregateRootName]
+        + save(aggregate: [AggregateRootName]): void
+        + delete(id: [IdType]): void
+    }
+
+    class "[AggregateRootName]" <<Aggregate Root>> {
+        - id: [IdType]
+        - code: UniqueCode
+        - status: [EnumStatus]
+        --
+        + [AggregateRootName](id: [IdType], code: UniqueCode)
+        + executeDomainBusinessRule(param: [ValueObjectName]): void
+        + changeStatus(newStatus: [EnumStatus]): void
+    }
+
+    class "[AssociatedEntityName]" <<Entity>> {
+        - id: [IdType]
+        - description: String
+        --
+        + [AssociatedEntityName](id: [IdType])
+        + updateDescription(description: String): void
+    }
+
+    class "[ValueObjectName]" <<Value Object>> {
+        - value: String
+        - amount: Double
+        --
+        + [ValueObjectName](value: String, amount: Double)
+        + getValue(): String
+        + equals(other: Object): Boolean
+    }
+
+    enum "[EnumStatus]" <<Enumeration>> {
+        + PENDING
+        + ACTIVE
+        + COMPLETED
+        + CANCELLED
+    }
+
+    ' Relaciones e interacciones de DDD
+    "[AggregateRootName]" "1" *--> "0..*" "[AssociatedEntityName]" : contains >
+    "[AggregateRootName]" "1" *--> "1" "[ValueObjectName]" : attributes >
+    "[AggregateRootName]" .le.> "[EnumStatus]" : uses
+    "[AggregateName]Repository" ..> "[AggregateRootName]" : manages >
+}
+
+note bottom of "Domain.Model.[YourBoundedContext]"
+  **Rules for C01:**
+  1. All names in English.
+  2. Logic stays inside Aggregate and Entities.
+  3. Value Objects are immutable (no setters).
+end note
+
+@enduml
