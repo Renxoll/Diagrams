@@ -1,0 +1,217 @@
+@startuml ResourceOptimization_DomainLayer
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor<<AggregateRoot>> #438dd5
+    FontColor<<AggregateRoot>> #ffffff
+    BackgroundColor<<Entity>> #85bbf0
+    BackgroundColor<<ValueObject>> #d4e6f9
+    BackgroundColor<<Enumeration>> #f5deb3
+    BackgroundColor<<DomainEvent>> #ffd699
+    BackgroundColor<<Command>> #c6e5c6
+    BackgroundColor<<CommandHandler>> #a3d1a3
+    BackgroundColor<<Query>> #c6d9e5
+    BackgroundColor<<QueryHandler>> #9bc0d9
+    BackgroundColor<<Repository>> #e8c6c6
+}
+
+package "Aggregate" {
+    class ResourceOptimizationPlan <<AggregateRoot>> {
+        - id: ResourceOptimizationPlanId
+        - farmId: FarmId
+        - soilCondition: SoilCondition
+        - weatherCondition: WeatherCondition
+        - irrigationStrategy: IrrigationStrategy
+        - fertilizationStrategy: FertilizationStrategy
+        - status: OptimizationStatus
+        - sensorReadings: List<SensorReading>
+        - simulationResults: List<SimulationResult>
+        - lastUpdatedAt: DateTime
+        + recordSensorReading(reading: SensorReading): void
+        + calculateOptimalStrategy(): void
+        + runSimulation(parameters: SimulationParameters): SimulationResult
+        + applyStrategy(): void
+        + adjustStrategy(reason: AdjustmentReason): void
+    }
+
+    class SensorReading <<Entity>> {
+        - id: SensorReadingId
+        - sensorType: SensorType
+        - value: double
+        - recordedAt: DateTime
+    }
+
+    class SimulationResult <<Entity>> {
+        - id: SimulationResultId
+        - projectedWaterUsageLiters: double
+        - projectedFertilizerUsageKg: double
+        - recommendedAdjustment: string
+        - simulatedAt: DateTime
+    }
+}
+
+package "Value Objects" {
+    class ResourceOptimizationPlanId <<ValueObject>> {
+        - value: Guid
+    }
+    class FarmId <<ValueObject>> {
+        - value: Guid
+    }
+    class SoilCondition <<ValueObject>> {
+        - moisturePercentage: double
+        - temperatureCelsius: double
+    }
+    class WeatherCondition <<ValueObject>> {
+        - temperatureCelsius: double
+        - humidityPercentage: double
+        - forecastSummary: string
+    }
+    class IrrigationStrategy <<ValueObject>> {
+        - waterVolumeLiters: double
+        - scheduledAt: DateTime
+        - durationMinutes: int
+    }
+    class FertilizationStrategy <<ValueObject>> {
+        - nutrientType: NutrientType
+        - quantityKg: double
+        - scheduledAt: DateTime
+    }
+    class SimulationParameters <<ValueObject>> {
+        - projectedRainfallMm: double
+        - horizonDays: int
+    }
+}
+
+package "Enumerations" {
+    enum OptimizationStatus <<Enumeration>> {
+        Draft
+        Active
+        Adjusted
+        Completed
+    }
+    enum NutrientType <<Enumeration>> {
+        Nitrogen
+        Phosphorus
+        Potassium
+        Mixed
+    }
+    enum SensorType <<Enumeration>> {
+        SoilMoisture
+        Temperature
+        Weather
+    }
+}
+
+package "Commands" {
+    class CreateResourceOptimizationPlanCommand <<Command>> {
+        + farmId: FarmId
+    }
+    class RecordSensorReadingCommand <<Command>> {
+        + planId: ResourceOptimizationPlanId
+        + sensorType: SensorType
+        + value: double
+    }
+    class RunSimulationCommand <<Command>> {
+        + planId: ResourceOptimizationPlanId
+        + parameters: SimulationParameters
+    }
+    class ApplyOptimizationStrategyCommand <<Command>> {
+        + planId: ResourceOptimizationPlanId
+    }
+
+    class CreateResourceOptimizationPlanHandler <<CommandHandler>> {
+        + handle(command: CreateResourceOptimizationPlanCommand): void
+    }
+    class RecordSensorReadingHandler <<CommandHandler>> {
+        + handle(command: RecordSensorReadingCommand): void
+    }
+    class RunSimulationHandler <<CommandHandler>> {
+        + handle(command: RunSimulationCommand): SimulationResult
+    }
+}
+
+package "Queries" {
+    class GetCurrentStrategyQuery <<Query>> {
+        + planId: ResourceOptimizationPlanId
+    }
+    class GetSimulationHistoryQuery <<Query>> {
+        + planId: ResourceOptimizationPlanId
+    }
+
+    class GetCurrentStrategyHandler <<QueryHandler>> {
+        + handle(query: GetCurrentStrategyQuery): ResourceOptimizationPlanReadModel
+    }
+    class GetSimulationHistoryHandler <<QueryHandler>> {
+        + handle(query: GetSimulationHistoryQuery): List<SimulationResultReadModel>
+    }
+}
+
+package "Domain Events" {
+    class SensorReadingRecorded <<DomainEvent>> {
+        + planId: ResourceOptimizationPlanId
+        + reading: SensorReading
+        + occurredAt: DateTime
+    }
+    class OptimizationStrategyCalculated <<DomainEvent>> {
+        + planId: ResourceOptimizationPlanId
+        + occurredAt: DateTime
+    }
+    class SimulationCompleted <<DomainEvent>> {
+        + planId: ResourceOptimizationPlanId
+        + result: SimulationResult
+        + occurredAt: DateTime
+    }
+    class StrategyApplied <<DomainEvent>> {
+        + planId: ResourceOptimizationPlanId
+        + occurredAt: DateTime
+    }
+}
+
+package "Repository" {
+    interface IResourceOptimizationPlanRepository <<Repository>> {
+        + getById(id: ResourceOptimizationPlanId): ResourceOptimizationPlan
+        + save(plan: ResourceOptimizationPlan): void
+    }
+}
+
+' Aggregate internal composition
+ResourceOptimizationPlan "1" *-- "0..*" SensorReading : contains
+ResourceOptimizationPlan "1" *-- "0..*" SimulationResult : contains
+ResourceOptimizationPlan "1" -- "1" ResourceOptimizationPlanId
+ResourceOptimizationPlan "1" -- "1" FarmId
+ResourceOptimizationPlan "1" -- "1" SoilCondition
+ResourceOptimizationPlan "1" -- "1" WeatherCondition
+ResourceOptimizationPlan "1" -- "0..1" IrrigationStrategy
+ResourceOptimizationPlan "1" -- "0..1" FertilizationStrategy
+ResourceOptimizationPlan "1" -- "1" OptimizationStatus
+FertilizationStrategy "1" -- "1" NutrientType
+SensorReading "1" -- "1" SensorType
+
+' Commands -> Handlers -> Aggregate / Repository
+CreateResourceOptimizationPlanCommand ..> CreateResourceOptimizationPlanHandler
+RecordSensorReadingCommand ..> RecordSensorReadingHandler
+RunSimulationCommand ..> RunSimulationHandler
+RunSimulationCommand "1" -- "1" SimulationParameters
+
+CreateResourceOptimizationPlanHandler ..> IResourceOptimizationPlanRepository : uses
+RecordSensorReadingHandler ..> IResourceOptimizationPlanRepository : uses
+RunSimulationHandler ..> IResourceOptimizationPlanRepository : uses
+RecordSensorReadingHandler ..> ResourceOptimizationPlan : invokes recordSensorReading()
+RunSimulationHandler ..> ResourceOptimizationPlan : invokes runSimulation()
+
+' Queries -> Handlers -> Repository
+GetCurrentStrategyQuery ..> GetCurrentStrategyHandler
+GetSimulationHistoryQuery ..> GetSimulationHistoryHandler
+GetCurrentStrategyHandler ..> IResourceOptimizationPlanRepository : uses
+GetSimulationHistoryHandler ..> IResourceOptimizationPlanRepository : uses
+
+' Domain events raised by the aggregate
+ResourceOptimizationPlan ..> SensorReadingRecorded : raises
+ResourceOptimizationPlan ..> OptimizationStrategyCalculated : raises
+ResourceOptimizationPlan ..> SimulationCompleted : raises
+ResourceOptimizationPlan ..> StrategyApplied : raises
+
+' Repository manages the aggregate
+IResourceOptimizationPlanRepository ..> ResourceOptimizationPlan : manages
+
+@enduml
