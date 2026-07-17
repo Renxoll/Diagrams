@@ -1,1 +1,176 @@
+@startuml DomainLayer_Template
+' PLANTILLA - Domain Layer (DDD + CQRS) para un Bounded Context.
+' Renombra estos placeholders (Ctrl+H) por los del nuevo caso:
+'   AggregateRoot   -> nombre del Aggregate Root (ej. ResourceOptimizationPlan)
+'   ChildEntity     -> entidad hija dentro del aggregate (ej. SensorReading)
+'   ValueObjectA/B  -> value objects relevantes (ej. SoilCondition, IrrigationStrategy)
+'   StatusEnum      -> enum de estado del aggregate
+'   "Aggregate" dentro de Commands/Queries/Events/Repository -> mismo nombre corto (ej. Plan)
+' Duplica los bloques de Entity, Value Object, Command o Query que necesites.
+' Borra los que no apliquen al nuevo caso.
 
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor<<AggregateRoot>> #438dd5
+    FontColor<<AggregateRoot>> #ffffff
+    BackgroundColor<<Entity>> #85bbf0
+    BackgroundColor<<ValueObject>> #d4e6f9
+    BackgroundColor<<Enumeration>> #f5deb3
+    BackgroundColor<<DomainEvent>> #ffd699
+    BackgroundColor<<Command>> #c6e5c6
+    BackgroundColor<<CommandHandler>> #a3d1a3
+    BackgroundColor<<Query>> #c6d9e5
+    BackgroundColor<<QueryHandler>> #9bc0d9
+    BackgroundColor<<Repository>> #e8c6c6
+}
+
+package "Aggregate" {
+    class AggregateRoot <<AggregateRoot>> {
+        - id: AggregateRootId
+        - referenceId: ReferenceId
+        - primaryValueObject: ValueObjectA
+        - secondaryValueObject: ValueObjectB
+        - status: StatusEnum
+        - childEntities: List<ChildEntity>
+        - lastUpdatedAt: DateTime
+        + mainBehavior(): void
+        + performAction(parameters: ActionParameters): ActionResult
+        + apply(): void
+        + adjust(reason: AdjustmentReason): void
+    }
+
+    class ChildEntity <<Entity>> {
+        - id: ChildEntityId
+        - value: double
+        - recordedAt: DateTime
+    }
+}
+
+package "Value Objects" {
+    class AggregateRootId <<ValueObject>> {
+        - value: Guid
+    }
+    class ReferenceId <<ValueObject>> {
+        - value: Guid
+    }
+    class ValueObjectA <<ValueObject>> {
+        - attribute1: double
+        - attribute2: double
+    }
+    class ValueObjectB <<ValueObject>> {
+        - attribute1: double
+        - attribute2: string
+    }
+    class ActionParameters <<ValueObject>> {
+        - attribute1: double
+        - attribute2: int
+    }
+}
+
+package "Enumerations" {
+    enum StatusEnum <<Enumeration>> {
+        Draft
+        Active
+        Adjusted
+        Completed
+    }
+}
+
+package "Commands" {
+    class CreateAggregateCommand <<Command>> {
+        + referenceId: ReferenceId
+    }
+    class UpdateAggregateCommand <<Command>> {
+        + id: AggregateRootId
+        + value: double
+    }
+    class PerformAggregateActionCommand <<Command>> {
+        + id: AggregateRootId
+        + parameters: ActionParameters
+    }
+
+    class CreateAggregateHandler <<CommandHandler>> {
+        + handle(command: CreateAggregateCommand): void
+    }
+    class UpdateAggregateHandler <<CommandHandler>> {
+        + handle(command: UpdateAggregateCommand): void
+    }
+    class PerformAggregateActionHandler <<CommandHandler>> {
+        + handle(command: PerformAggregateActionCommand): ActionResult
+    }
+}
+
+package "Queries" {
+    class GetAggregateByIdQuery <<Query>> {
+        + id: AggregateRootId
+    }
+    class GetAggregateHistoryQuery <<Query>> {
+        + id: AggregateRootId
+    }
+
+    class GetAggregateByIdHandler <<QueryHandler>> {
+        + handle(query: GetAggregateByIdQuery): AggregateReadModel
+    }
+    class GetAggregateHistoryHandler <<QueryHandler>> {
+        + handle(query: GetAggregateHistoryQuery): List<AggregateHistoryReadModel>
+    }
+}
+
+package "Domain Events" {
+    class AggregateCreated <<DomainEvent>> {
+        + id: AggregateRootId
+        + occurredAt: DateTime
+    }
+    class AggregateUpdated <<DomainEvent>> {
+        + id: AggregateRootId
+        + occurredAt: DateTime
+    }
+    class AggregateActionPerformed <<DomainEvent>> {
+        + id: AggregateRootId
+        + result: ActionResult
+        + occurredAt: DateTime
+    }
+}
+
+package "Repository" {
+    interface IAggregateRepository <<Repository>> {
+        + getById(id: AggregateRootId): AggregateRoot
+        + save(aggregate: AggregateRoot): void
+    }
+}
+
+' Composicion del aggregate
+AggregateRoot "1" *-- "0..*" ChildEntity : contains
+AggregateRoot "1" -- "1" AggregateRootId
+AggregateRoot "1" -- "1" ReferenceId
+AggregateRoot "1" -- "1" ValueObjectA
+AggregateRoot "1" -- "1" ValueObjectB
+AggregateRoot "1" -- "1" StatusEnum
+
+' Commands -> Handlers -> Aggregate / Repository
+CreateAggregateCommand ..> CreateAggregateHandler
+UpdateAggregateCommand ..> UpdateAggregateHandler
+PerformAggregateActionCommand ..> PerformAggregateActionHandler
+PerformAggregateActionCommand "1" -- "1" ActionParameters
+
+CreateAggregateHandler ..> IAggregateRepository : uses
+UpdateAggregateHandler ..> IAggregateRepository : uses
+PerformAggregateActionHandler ..> IAggregateRepository : uses
+UpdateAggregateHandler ..> AggregateRoot : invokes mainBehavior()
+PerformAggregateActionHandler ..> AggregateRoot : invokes performAction()
+
+' Queries -> Handlers -> Repository
+GetAggregateByIdQuery ..> GetAggregateByIdHandler
+GetAggregateHistoryQuery ..> GetAggregateHistoryHandler
+GetAggregateByIdHandler ..> IAggregateRepository : uses
+GetAggregateHistoryHandler ..> IAggregateRepository : uses
+
+' Domain events emitidos por el aggregate
+AggregateRoot ..> AggregateCreated : raises
+AggregateRoot ..> AggregateUpdated : raises
+AggregateRoot ..> AggregateActionPerformed : raises
+
+' Repository administra el aggregate
+IAggregateRepository ..> AggregateRoot : manages
+
+@enduml
